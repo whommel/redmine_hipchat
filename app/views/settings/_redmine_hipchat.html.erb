@@ -17,6 +17,12 @@
 </p>
 
 <p>
+  <%= content_tag(:label, l(:hipchat_settings_label_sidekiq)) %>
+  <%= check_box_tag 'settings[sidekiq]', 1, @settings[:sidekiq] %>
+  Use sidekiq for sending messages to HipChat?
+</p>
+
+<p>
   <%= content_tag(:label, l(:hipchat_settings_label_projects)) %>
   <%= select_tag 'settings[projects][]', project_tree_options_for_select(Project.active, :selected => Project.where(:id => @settings[:projects])), :multiple => true, :size => Project.active.size %>
 </p>

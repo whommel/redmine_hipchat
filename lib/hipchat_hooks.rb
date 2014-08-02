@@ -19,7 +19,8 @@ class NotificationHook < Redmine::Hook::Listener
     data[:room]   = hipchat_room_name(project)
     data[:notify] = hipchat_notify(project)
 
-    send_message(data)
+    send_message(data) unless hipchat_sidekiq(project)
+    send_message_sidekiq(data) if hipchat_sidekiq(project)
   end
 
   def controller_issues_edit_after_save(context = {})
@@ -41,7 +42,8 @@ class NotificationHook < Redmine::Hook::Listener
     data[:room]   = hipchat_room_name(project)
     data[:notify] = hipchat_notify(project)
 
-    send_message(data)
+    send_message(data) unless hipchat_sidekiq(project)
+    send_message_sidekiq(data) if hipchat_sidekiq(project)
   end
 
   def controller_wiki_edit_after_save(context = {})
@@ -61,7 +63,8 @@ class NotificationHook < Redmine::Hook::Listener
     data[:room]   = hipchat_room_name(project)
     data[:notify] = hipchat_notify(project)
 
-    send_message(data)
+    send_message(data) unless hipchat_sidekiq(project)
+    send_message_sidekiq(data) if hipchat_sidekiq(project)
   end
 
   private
@@ -95,6 +98,11 @@ class NotificationHook < Redmine::Hook::Listener
     Setting.plugin_redmine_hipchat[:notify]
   end
 
+  def hipchat_sidekiq(project)
+    return project.hipchat_sidekiq if !project.hipchat_auth_token.empty? && !project.hipchat_room_name.empty?
+    Setting.plugin_redmine_hipchat[:sidekiq]
+  end
+
   def get_url(object)
     case object
       when Issue    then "#{Setting[:protocol]}://#{Setting[:host_name]}/issues/#{object.id}"
@@ -126,6 +134,22 @@ class NotificationHook < Redmine::Hook::Listener
     rescue Net::HTTPBadResponse => e
       Rails.logger.error "Error hitting HipChat API: #{e}"
     end
+  end
+
+  def send_message_sidekiq(data)
+    PostUrlWorker.perform_async("/v1/rooms/message",
+      "api.hipchat.com",
+      443,
+      {
+      :auth_token => data[:token],
+      :room_id => data[:room],
+      :notify => data[:notify] ? 1 : 0,
+      :from => 'Redmine',
+      :message => data[:text]
+      },
+      'application/x-www-form-urlencoded',
+      true
+    )
   end
 
   def truncate(text, length = 20, end_string = '…')
